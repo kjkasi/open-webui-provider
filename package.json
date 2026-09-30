@@ -1,0 +1,25 @@
+{
+  "name": "pi-open-webui-provider",
+  "version": "0.1.0",
+  "description": "Dynamic Open WebUI provider for Pi",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "files": ["src", "README.md"],
+  "pi": {
+    "extensions": ["./src/extension.ts"]
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.99.1",
+    "@types/node": "^22.19.19",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  }
+}
