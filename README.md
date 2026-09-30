@@ -10,6 +10,15 @@ Install the package through Pi:
 pi install npm:pi-open-webui-provider
 ```
 
+For local development, run Pi's installer from the cloned repository:
+
+```bash
+cd /path/to/pi-open-webui-provider
+pi install .
+```
+
+Use `pi install --local .` to register the package only for the current project in `.pi/settings.json`.
+
 Set the environment variables **before Pi starts**:
 
 ```bash
