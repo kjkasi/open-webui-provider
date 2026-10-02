@@ -4,7 +4,7 @@
 
 ## Goal
 
-Create a distributable Pi npm package that discovers all models available from one Open WebUI instance and exposes them in Pi's standard `/model` picker for chat use.
+Create a Pi package installed directly from Git that discovers all models available from one Open WebUI instance and exposes them in Pi's standard `/model` picker for chat use.
 
 ## Scope
 
@@ -87,10 +87,10 @@ Metadata values are accepted only when they are finite, positive, safe integers.
 
 ## Configuration and user experience
 
-The package is distributed as an npm Pi package named `pi-open-webui-provider` with conventional extension discovery. Its README documents installation and runtime setup separately:
+The package is distributed from Git as `github.com/kjkasi/open-webui-provider` with conventional extension discovery. Its README documents installation and runtime setup separately:
 
 ```bash
-pi install npm:pi-open-webui-provider
+pi install git:github.com/kjkasi/open-webui-provider
 OPEN_WEBUI_BASE_URL=http://localhost:3000 \
 OPEN_WEBUI_API_KEY=... \
 pi
@@ -127,7 +127,7 @@ The package does not re-test Pi's built-in OpenAI stream implementation. A live 
 ## File responsibilities
 
 ```text
-package.json                  npm package metadata, scripts, peer/dev dependencies
+package.json                  Pi package manifest, scripts, peer/dev dependencies
  tsconfig.json                TypeScript compiler settings
 src/extension.ts              Pi provider registration and env wiring
 src/open-webui-client.ts      GET /api/models transport and response validation

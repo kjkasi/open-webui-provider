@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and publishable-package a Pi extension that discovers all usable models from one Open WebUI instance and routes chat through Pi's built-in OpenAI-compatible implementation.
+**Goal:** Build a Git-installable Pi extension that discovers all usable models from one Open WebUI instance and routes chat through Pi's built-in OpenAI-compatible implementation.
 
 **Architecture:** `src/extension.ts` registers provider `open-webui` with `api: "openai-completions"`, an env-interpolated API key, and a live `refreshModels` callback. `src/open-webui-client.ts` owns fetch, URL/header construction, safe response validation, and abort behavior; `src/model-mapper.ts` is a pure normalizer from unknown Open WebUI records to Pi chat model configs. No catalog is persisted and no custom chat streaming code is added.
 
-**Tech Stack:** TypeScript, native `fetch`, Vitest, Pi extension API, npm package with conventional `pi.extensions` discovery.
+**Tech Stack:** TypeScript, native `fetch`, Vitest, Pi extension API, Git-installed Pi package with conventional `pi.extensions` discovery.
 
 **Spec:** `docs/superpowers/specs/2026-09-30-open-webui-provider-design.md`
 
@@ -42,7 +42,7 @@
 - Create: `src/model-mapper.ts`
 - Test: `test/model-mapper.test.ts`
 
-`package.json` must define `name: "pi-open-webui-provider"`, `type: "module"`, `keywords: ["pi-package"]`, `pi.extensions: ["./src/extension.ts"]`, `files: ["src", "README.md"]`, scripts `test: "vitest --run"` and `typecheck: "tsc --noEmit"`, `@earendil-works/pi-coding-agent` as a wildcard peer dependency, and matching dev dependencies for that host, TypeScript, Node types, and Vitest.
+`package.json` must define `name: "pi-open-webui-provider"`, `type: "module"`, `pi.extensions: ["./src/extension.ts"]`, scripts `test: "vitest --run"` and `typecheck: "tsc --noEmit"`, `@earendil-works/pi-coding-agent` as a wildcard peer dependency, and matching dev dependencies for that host, TypeScript, Node types, and Vitest. It must not include npm publication metadata such as `keywords` or `files`, and the repository must not include `package-lock.json`.
 
 **Interfaces:**
 - Produces `mapOpenWebUIModels(records: unknown[]): ProviderModelConfig[]` exported from `src/model-mapper.ts`.
@@ -155,7 +155,7 @@
   git commit -m "feat: register dynamic Open WebUI provider"
   ```
 
-### Task 4: Package README and release checks
+### Task 4: Git package README and verification
 
 **Files:**
 - Modify: `README.md`
@@ -163,11 +163,11 @@
 
 **Interfaces:**
 - Consumes the completed extension entry point and package manifest from Tasks 1–3.
-- Produces a distributable npm package named `pi-open-webui-provider` with conventional `pi.extensions` discovery and user-facing setup documentation.
+- Produces a Git-installable Pi package named `pi-open-webui-provider` with conventional `pi.extensions` discovery and user-facing setup documentation.
 
 - [ ] **Step 1: Write a failing documentation/package check**
 
-  Create `test/package.test.ts` that reads the root manifest and README, asserting the exact package name, `pi.extensions`, `files` entries, `test` and `typecheck` scripts, `pi install npm:pi-open-webui-provider`, both environment variables, startup-time setup, `/model`, `/reload`, and security/no-persistence notes.
+  Create `test/package.test.ts` that reads the root manifest and README, asserting the exact package name, `pi.extensions`, `test` and `typecheck` scripts, `pi install git:github.com/kjkasi/open-webui-provider`, absence of npm publication metadata and `package-lock.json`, both environment variables, startup-time setup, `/model`, `/reload`, and security/no-persistence notes.
 
 - [ ] **Step 2: Run the package check and verify RED**
 
@@ -177,13 +177,13 @@
 
 - [ ] **Step 3: Complete README documentation**
 
-  Document `pi install npm:pi-open-webui-provider`, startup-time env configuration, `/model` refresh behavior, `/reload`, supported scope, zero-cost metadata behavior, and that credentials/catalogs are not persisted or logged.
+  Document `pi install git:github.com/kjkasi/open-webui-provider`, startup-time env configuration, `/model` refresh behavior, `/reload`, supported scope, zero-cost metadata behavior, and that credentials/catalogs are not persisted or logged.
 
 - [ ] **Step 4: Run final verification**
 
-  Run: `npm test && npm run typecheck && npm pack --dry-run`
+  Run: `npm test && npm run typecheck`
 
-  Expected: complete test suite PASS, typecheck PASS, and dry-run package output includes the manifest, README, `src/extension.ts`, `src/open-webui-client.ts`, and `src/model-mapper.ts` without credentials.
+  Expected: complete test suite PASS and typecheck PASS.
 
 - [ ] **Step 5: Commit**
 

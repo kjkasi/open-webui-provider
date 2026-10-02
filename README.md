@@ -4,10 +4,10 @@ A Pi package that discovers the models available from one Open WebUI instance an
 
 ## Installation
 
-Install the package through Pi:
+Install the package directly from Git:
 
 ```bash
-pi install npm:pi-open-webui-provider
+pi install git:github.com/kjkasi/open-webui-provider
 ```
 
 For local development, run Pi's installer from the cloned repository:

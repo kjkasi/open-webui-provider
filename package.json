@@ -4,8 +4,6 @@
   "description": "Dynamic Open WebUI provider for Pi",
   "type": "module",
   "license": "MIT",
-  "keywords": ["pi-package"],
-  "files": ["src", "README.md"],
   "pi": {
     "extensions": ["./src/extension.ts"]
   },
