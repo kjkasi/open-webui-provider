@@ -24,9 +24,9 @@ describe("package contract", () => {
   test("documents setup, refresh behavior, scope, and credential safety", () => {
     for (const requiredText of [
       "pi install npm:pi-open-webui-provider",
-      "OPEN_WEBUI_BASE_URL",
-      "OPEN_WEBUI_API_KEY",
-      "before Pi starts",
+      "/login open-webui",
+      "Open WebUI base URL",
+      "Open WebUI API token",
       "/model",
       "/reload",
       "zero cost",
@@ -35,5 +35,7 @@ describe("package contract", () => {
     ]) {
       expect(readme).toContain(requiredText);
     }
+    expect(readme).not.toContain("OPEN_WEBUI_BASE_URL");
+    expect(readme).not.toContain("OPEN_WEBUI_API_KEY");
   });
 });

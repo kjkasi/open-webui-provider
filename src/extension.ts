@@ -3,40 +3,122 @@ import { mapOpenWebUIModels } from "./model-mapper.ts";
 import { createOpenWebUIClient } from "./open-webui-client.ts";
 
 const PROVIDER_ID = "open-webui";
-const API_KEY_ENV = "OPEN_WEBUI_API_KEY";
-const BASE_URL_ENV = "OPEN_WEBUI_BASE_URL";
+const NOT_CONFIGURED_MESSAGE = "Open WebUI is not configured. Run /login open-webui.";
+const STATIC_CREDENTIAL_EXPIRY = Number.MAX_SAFE_INTEGER;
 
-type Environment = Record<string, string | undefined>;
+type OAuthLoginCallbacks = Parameters<NonNullable<ProviderConfig["oauth"]>["login"]>[0];
+type OpenWebUICredentials = {
+  type: "oauth";
+  refresh: string;
+  access: string;
+  expires: number;
+  baseUrl: string;
+};
 
 function normalizeBaseUrl(value: string): string {
-  return value.trim().replace(/\/+$/, "");
-}
-
-function requireEnvironmentVariable(env: Environment, name: string): string {
-  const value = env[name];
-  if (value === undefined || value === "") {
-    throw new Error(`Missing required environment variable: ${name}`);
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    throw new Error("Open WebUI base URL is required.");
   }
-  return value;
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new Error("Open WebUI base URL must be a valid http:// or https:// URL.");
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Open WebUI base URL must be a valid http:// or https:// URL.");
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new Error("Open WebUI base URL must not contain username or password.");
+  }
+
+  const path = url.pathname.replace(/\/+$/, "");
+  if (path.toLowerCase() === "/api") {
+    throw new Error(
+      "Open WebUI base URL must not end with /api; provide the Open WebUI server URL.",
+    );
+  }
+
+  return `${url.origin}${path}`;
 }
 
-export function createOpenWebUIProviderConfig(
-  env: Environment = process.env,
-  fetchImpl: typeof fetch = fetch,
-): ProviderConfig {
-  const configuredBaseUrl = env[BASE_URL_ENV];
-  const normalizedBaseUrl = configuredBaseUrl ? normalizeBaseUrl(configuredBaseUrl) : undefined;
+function getStoredCredentials(credential: unknown): OpenWebUICredentials | undefined {
+  if (
+    typeof credential !== "object" ||
+    credential === null ||
+    (credential as { type?: unknown }).type !== "oauth"
+  ) {
+    return undefined;
+  }
+
+  const candidate = credential as Partial<OpenWebUICredentials>;
+  if (
+    typeof candidate.access !== "string" ||
+    typeof candidate.baseUrl !== "string" ||
+    candidate.baseUrl.trim() === ""
+  ) {
+    return undefined;
+  }
 
   return {
+    type: "oauth",
+    refresh: typeof candidate.refresh === "string" ? candidate.refresh : "",
+    access: candidate.access,
+    expires: typeof candidate.expires === "number" ? candidate.expires : STATIC_CREDENTIAL_EXPIRY,
+    baseUrl: normalizeBaseUrl(candidate.baseUrl),
+  };
+}
+
+export function createOpenWebUIProviderConfig(fetchImpl: typeof fetch = fetch): ProviderConfig {
+  return {
     api: "openai-completions",
-    baseUrl: normalizedBaseUrl ? `${normalizedBaseUrl}/api` : undefined,
-    apiKey: `$${API_KEY_ENV}`,
+    baseUrl: undefined,
+    apiKey: undefined,
     authHeader: true,
     refreshModels: async (context) => {
-      const baseUrl = normalizeBaseUrl(requireEnvironmentVariable(env, BASE_URL_ENV));
-      const apiKey = requireEnvironmentVariable(env, API_KEY_ENV);
-      const client = createOpenWebUIClient({ baseUrl, apiKey, fetchImpl });
-      return mapOpenWebUIModels(await client.fetchModels(context.signal));
+      const credentials = getStoredCredentials(context.credential);
+      if (!credentials) {
+        throw new Error(NOT_CONFIGURED_MESSAGE);
+      }
+
+      const client = createOpenWebUIClient({
+        baseUrl: credentials.baseUrl,
+        apiKey: credentials.access,
+        fetchImpl,
+      });
+      const models = mapOpenWebUIModels(await client.fetchModels(context.signal));
+      return models.map((model) => ({
+        ...model,
+        baseUrl: `${credentials.baseUrl}/api`,
+      }));
+    },
+    oauth: {
+      name: "Open WebUI",
+      login: async (callbacks: OAuthLoginCallbacks): Promise<OpenWebUICredentials> => {
+        const baseUrl = normalizeBaseUrl(
+          await callbacks.onPrompt({ message: "Open WebUI base URL:" }),
+        );
+        const access = await callbacks.onPrompt({ message: "Open WebUI API token:" });
+        if (access.trim() === "") {
+          throw new Error("Open WebUI API token is required.");
+        }
+
+        return {
+          type: "oauth",
+          refresh: "",
+          access,
+          expires: STATIC_CREDENTIAL_EXPIRY,
+          baseUrl,
+        };
+      },
+      refreshToken: async (credentials, signal) => {
+        signal.throwIfAborted();
+        return credentials;
+      },
+      getApiKey: (credentials) => credentials.access,
     },
   };
 }

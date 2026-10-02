@@ -19,17 +19,17 @@ pi install .
 
 Use `pi install --local .` to register the package only for the current project in `.pi/settings.json`.
 
-Set the environment variables **before Pi starts**:
+## Setup
 
-```bash
-OPEN_WEBUI_BASE_URL=http://localhost:3000 \
-OPEN_WEBUI_API_KEY=... \
-pi
+Start Pi and run:
+
+```text
+/login open-webui
 ```
 
-`OPEN_WEBUI_BASE_URL` is the Open WebUI origin, and `OPEN_WEBUI_API_KEY` is a Bearer API key created by Open WebUI. The variables are read at startup and again when the model catalog is refreshed.
+Enter the **Open WebUI base URL** and **Open WebUI API token** when prompted. The URL should point to the Open WebUI server, for example `http://localhost:3000` or `https://example.com/open-webui`; do not append `/api`.
 
-Open `/model` to refresh the live catalog and select a discovered chat model. Use `/reload` after changing extension code or the runtime configuration.
+Pi stores the credential in its own authentication store. Use `/logout` to remove it. Open `/model` to refresh the live catalog and select a discovered chat model. Use `/reload` after changing extension code.
 
 ## What it supports
 
@@ -43,10 +43,10 @@ Models without usable optional metadata still appear with a 32,000-token context
 
 ## Security and data handling
 
-The API key is passed as a Bearer credential. The package does not log the API key or include it in package errors. Error response excerpts are sanitized, redacted, and limited to 500 characters. Requests are made only to the explicitly configured base URL.
+The API token is passed as a Bearer credential. Pi handles credential storage; the package does not log the token or include it in package errors. Error response excerpts are sanitized, redacted, and limited to 500 characters. Requests are made only to the URL supplied during login.
 
-The package does not persist credentials or the live model catalog in `auth.json`, `models.json`, project settings, or another package store. A failed refresh is reported as an error rather than silently replacing the catalog with an empty list.
+The package does not persist the live model catalog in `models.json`, project settings, or another package store. A failed refresh is reported as an error rather than silently replacing the catalog with an empty list.
 
 ## Scope
 
-This first version does not support multiple profiles, OAuth login, anonymous authentication, allowlists, persistent/offline catalogs, custom streaming, retries, or Open WebUI server-side `tool_ids` configuration.
+This first version does not support multiple profiles, anonymous authentication, allowlists, persistent/offline catalogs, custom streaming, retries, or Open WebUI server-side `tool_ids` configuration.
