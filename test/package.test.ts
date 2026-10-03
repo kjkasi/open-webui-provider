@@ -28,6 +28,9 @@ describe("package contract", () => {
       "/login open-webui",
       "Open WebUI base URL",
       "Open WebUI API token",
+      "OPEN_WEBUI_BASE_URL",
+      "OPEN_WEBUI_API_KEY",
+      "do not append `/api`",
       "/model",
       "/reload",
       "zero cost",
@@ -37,5 +40,15 @@ describe("package contract", () => {
       expect(readme).toContain(requiredText);
     }
     expect(readme).not.toContain("pi install npm:pi-open-webui-provider");
+    for (const troubleshootingText of [
+      "401/403",
+      "404:",
+      "429:",
+      "5xx:",
+      "Connection or HTTPS errors",
+      "Diagnostics never include the API token.",
+    ]) {
+      expect(readme).toContain(troubleshootingText);
+    }
   });
 });

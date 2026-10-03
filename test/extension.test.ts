@@ -10,8 +10,11 @@ function response(body: unknown): Response {
   } as unknown as Response;
 }
 
-function registeredConfig(fetchImpl = vi.fn<typeof fetch>()) {
-  const config = createOpenWebUIProviderConfig(fetchImpl as never);
+function registeredConfig(
+  env: Record<string, string | undefined> = {},
+  fetchImpl = vi.fn<typeof fetch>(),
+) {
+  const config = createOpenWebUIProviderConfig(env, fetchImpl);
   return { config, fetchImpl };
 }
 
@@ -44,11 +47,33 @@ describe("Open WebUI extension", () => {
       expect.objectContaining({
         api: "openai-completions",
         baseUrl: undefined,
-        apiKey: undefined,
+        apiKey: "$OPEN_WEBUI_API_KEY",
         authHeader: true,
         refreshModels: expect.any(Function),
         oauth: expect.objectContaining({ name: "Open WebUI" }),
       }),
+    );
+  });
+
+  test("preserves the legacy fetch-only factory signature", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      response({ data: [{ id: "legacy-model" }] }),
+    );
+    const config = createOpenWebUIProviderConfig(fetchImpl);
+    const credential: TestCredential = {
+      type: "oauth",
+      access: "legacy-token",
+      refresh: "",
+      expires: Number.MAX_SAFE_INTEGER,
+      baseUrl: "https://open-webui.example",
+    };
+
+    await expect(config.refreshModels?.(refreshContext(credential))).resolves.toMatchObject([
+      { id: "legacy-model", baseUrl: "https://open-webui.example/api" },
+    ]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://open-webui.example/api/models",
+      expect.anything(),
     );
   });
 
@@ -83,11 +108,40 @@ describe("Open WebUI extension", () => {
     expect(onPrompt).toHaveBeenCalledTimes(1);
   });
 
+  test("rejects an empty interactive API token", async () => {
+    const { config } = registeredConfig();
+    const onPrompt = vi
+      .fn()
+      .mockResolvedValueOnce("https://open-webui.example")
+      .mockResolvedValueOnce("  ");
+
+    await expect(config.oauth?.login({ onPrompt } as never)).rejects.toThrow(
+      "Open WebUI API token is required.",
+    );
+  });
+
+  test.each([
+    ["", "Missing required environment variable: OPEN_WEBUI_BASE_URL"],
+    ["not a URL", "Open WebUI base URL must be a valid http:// or https:// URL."],
+    ["ftp://open-webui.example", "Open WebUI base URL must be a valid http:// or https:// URL."],
+    [
+      "https://user:pass@open-webui.example",
+      "Open WebUI base URL must not contain username or password.",
+    ],
+  ])("validates an environment base URL: %s", async (baseUrl, message) => {
+    const { config } = registeredConfig({
+      OPEN_WEBUI_BASE_URL: baseUrl,
+      OPEN_WEBUI_API_KEY: "environment-token",
+    });
+
+    await expect(config.refreshModels?.(refreshContext())).rejects.toThrow(message);
+  });
+
   test("refreshes models using only the stored credential and attaches its API endpoint", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       response({ data: [{ id: "llama", name: "Llama" }] }),
     );
-    const { config } = registeredConfig(fetchImpl);
+    const { config } = registeredConfig({}, fetchImpl);
     const credential: TestCredential = {
       type: "oauth",
       access: "secret-token",
@@ -115,12 +169,112 @@ describe("Open WebUI extension", () => {
     );
   });
 
-  test("reports how to configure the provider when no credential is stored", async () => {
-    const { config } = registeredConfig();
-
-    await expect(config.refreshModels?.(refreshContext())).rejects.toThrow(
-      "Open WebUI is not configured. Run /login open-webui.",
+  test("uses the environment fallback when no credential is stored", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      response({ data: [{ id: "env-model" }] }),
     );
+    const { config } = registeredConfig(
+      {
+        OPEN_WEBUI_BASE_URL: "  https://open-webui.example/root///  ",
+        OPEN_WEBUI_API_KEY: "environment-token",
+      },
+      fetchImpl,
+    );
+
+    await expect(config.refreshModels?.(refreshContext())).resolves.toMatchObject([
+      { id: "env-model", baseUrl: "https://open-webui.example/root/api" },
+    ]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://open-webui.example/root/api/models",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer environment-token" }),
+      }),
+    );
+  });
+
+  test("prefers a valid OAuth credential over environment values", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      response({ data: [{ id: "oauth-model" }] }),
+    );
+    const { config } = registeredConfig(
+      {
+        OPEN_WEBUI_BASE_URL: "https://environment.example",
+        OPEN_WEBUI_API_KEY: "environment-token",
+      },
+      fetchImpl,
+    );
+    const credential: TestCredential = {
+      type: "oauth",
+      access: "oauth-token",
+      refresh: "",
+      expires: Number.MAX_SAFE_INTEGER,
+      baseUrl: "https://oauth.example",
+    };
+
+    await config.refreshModels?.(refreshContext(credential));
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://oauth.example/api/models",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer oauth-token" }),
+      }),
+    );
+  });
+
+  test("reports how to configure the provider when no source is configured", async () => {
+    const { config } = registeredConfig();
+    const refresh = config.refreshModels?.(refreshContext());
+
+    await expect(refresh).rejects.toThrow(
+      "Open WebUI is not configured. Run /login open-webui or set OPEN_WEBUI_BASE_URL and OPEN_WEBUI_API_KEY.",
+    );
+    await expect(refresh).rejects.not.toThrow("secret-token");
+  });
+
+  test("does not expose an environment token in URL validation errors", async () => {
+    const { config } = registeredConfig({
+      OPEN_WEBUI_BASE_URL: "https://open-webui.example/api",
+      OPEN_WEBUI_API_KEY: "secret-token",
+    });
+
+    const refresh = config.refreshModels?.(refreshContext());
+
+    await expect(refresh).rejects.toThrow(
+      "Open WebUI base URL must not end with /api; provide the Open WebUI server URL.",
+    );
+    await expect(refresh).rejects.not.toThrow("secret-token");
+  });
+
+  test.each(["OPEN_WEBUI_BASE_URL", "OPEN_WEBUI_API_KEY"])(
+    "reports the exact missing environment variable for partial configuration",
+    async (missingVariable) => {
+      const env = {
+        OPEN_WEBUI_BASE_URL: "https://open-webui.example",
+        OPEN_WEBUI_API_KEY: "environment-token",
+      };
+      delete env[missingVariable as keyof typeof env];
+      const { config } = registeredConfig(env);
+
+      await expect(config.refreshModels?.(refreshContext())).rejects.toThrow(
+        `Missing required environment variable: ${missingVariable}`,
+      );
+    },
+  );
+
+  test("preserves abort identity when refreshing static credentials", async () => {
+    const { config } = registeredConfig();
+    const credentials: TestCredential = {
+      type: "oauth",
+      access: "secret-token",
+      refresh: "",
+      expires: Number.MAX_SAFE_INTEGER,
+      baseUrl: "https://open-webui.example",
+    };
+    const controller = new AbortController();
+    const reason = new DOMException("aborted", "AbortError");
+    controller.abort(reason);
+
+    await expect(config.oauth?.refreshToken(credentials, controller.signal)).rejects.toBe(reason);
   });
 
   test("returns static credentials from refresh without exposing the token", async () => {
@@ -140,7 +294,7 @@ describe("Open WebUI extension", () => {
 
   test("rejects an empty catalog instead of returning an empty model list or persisting it", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(response({ data: [] }));
-    const { config } = registeredConfig(fetchImpl);
+    const { config } = registeredConfig({}, fetchImpl);
     const publish = vi.fn();
     const credential: TestCredential = {
       type: "oauth",
